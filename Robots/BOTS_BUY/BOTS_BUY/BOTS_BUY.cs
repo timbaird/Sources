@@ -11,16 +11,16 @@ namespace cAlgo.Robots
     public class BOTS_SELL : Robot
     {
         #region parameters
-        [Parameter("% Acct Risk per Trade", DefaultValue = 0.5)]
+        [Parameter("% Acct Risk per Trade", DefaultValue = 2)]
         public double pPercAcctRisk { get; set; }
 
-        [Parameter("Initial Stop Loss ATR Multipler", DefaultValue = 1.5)]
+        [Parameter("Initial Stop Loss ATR Multipler", DefaultValue = 1)]
         public double pInitialSLATRMultipler { get; set; }
 
         [Parameter("Minimum Stop Loss (pips)", DefaultValue = 5)]
         public double pMinimumSLPips { get; set; }
 
-        [Parameter("Scale Out Take Profit ATR Multiplier", DefaultValue = 1.5)]
+        [Parameter("Scale Out Take Profit ATR Multiplier", DefaultValue = 1)]
         public double pScaleOutATRMultipler { get; set; }
 
         [Parameter("Minimum Scale Out Take Profit (pips)", DefaultValue = 5)]
@@ -91,9 +91,26 @@ namespace cAlgo.Robots
 
             if (posList.Length == 0)
             {
+
                 var vResult = ExecuteMarketOrder(vDirection, Symbol, vVolume, vLabel);
-                vPos = vResult.Position;
-                vPos.ModifyStopLossPips(vInitialSLPips);
+                if (vResult.IsSuccessful)
+                {
+                    vPos = vResult.Position;
+                    vResult = vPos.ModifyStopLossPips(vInitialSLPips);
+                    if (vResult.IsSuccessful)
+                    {
+                        Print(vLabel + " INITIAL POSITION OPENED SUCCESSFULLY");
+                    }
+                    else
+                    {
+                        Print(vLabel + " INITIAL POSITION OPENED - PROBLEM MODIFYING STOP LOSS - " + vResult.ToString());
+                    }
+                }
+                else
+                {
+                    Print(vLabel + " FAILED TO OPEN INITIAL POSITION - " + vResult.ToString());
+                    Stop();
+                }
             }
             else
             {
@@ -108,7 +125,16 @@ namespace cAlgo.Robots
                 {
                     vScaleOutTPPrice = Convert.ToDouble(vPos.TakeProfit);
                     double? d = null;
-                    vPos.ModifyTakeProfitPrice(d);
+                    var vResult = vPos.ModifyTakeProfitPrice(d);
+
+                    if (vResult.IsSuccessful)
+                    {
+                        Print(vLabel + " RESTARTED SUCCESSFULLY - EXISTING POSITION IDENTIFIED");
+                    }
+                    else
+                    {
+                        Print(vLabel + " PROBLEM RESTARTING POSITION - " + vResult.ToString());
+                    }
                 }
             }
 
@@ -127,6 +153,7 @@ namespace cAlgo.Robots
 
                 vStartTrailingPrice = vScaleOutTPPrice;
 
+            //Chart.DrawStaticText("cScaleOutSLPrice", ("\n\n\n\n\n\n Scale Out TP price " + vScaleOutTPPrice), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
         }
 
         protected override void OnTick()
@@ -141,27 +168,62 @@ namespace cAlgo.Robots
 
                     if (vNewVolume > 0)
                     {
-                        vPos.ModifyVolume(vNewVolume);
-                        vPos.ModifyStopLossPips(-1);
+                        var vResult = vPos.ModifyVolume(vNewVolume);
 
-                        Print(vLabel + " SCALED OUT at : " + Symbol.Bid);
+                        if (vResult.IsSuccessful)
+                        {
+                            vResult = vPos.ModifyStopLossPips(-1);
+
+                            if (vResult.IsSuccessful)
+                            {
+                                Print(vLabel + " SCALED OUT SUCCESSFULLY AT : " + Symbol.Bid);
+                                vAlreadyScaledOut = true;
+                            }
+                            else
+                            {
+                                Print(vLabel + " PROBLEM SETTING TRAILING STOP ON SCALE OUT - " + vResult.ToString());
+                            }
+                        }
+                        else
+                        {
+                            Print(vLabel + " PROBLEM MODIFYING VOLUME ON SCALE OUT - " + vResult.ToString());
+                        }
                     }
                     else
                     {
+                        Print(vLabel + " VOLUME OF 1000 - POSITION CLOSED ON SCALE OUT");
+                        vAlreadyScaledOut = true;
                         vPos.Close();
                     }
-
-                    vAlreadyScaledOut = true;
                 }
+
             }
+            //}
             // has already, or doesn't need scaling out, but does need to start trailing
             else if (!vPos.HasTrailingStop)
             {
 
                 if (vDirection == TradeType.Buy && Symbol.Bid > vStartTrailingPrice || vDirection == TradeType.Sell && Symbol.Ask < vStartTrailingPrice)
                 {
-                    vPos.ModifyStopLossPips(vTrailingDistancePips - vStartTrailingPips);
-                    vPos.ModifyTrailingStop(true);
+                    var vResult = vPos.ModifyStopLossPips(vTrailingDistancePips - vStartTrailingPips);
+
+                    if (vResult.IsSuccessful)
+                    {
+                        vResult = vPos.ModifyTrailingStop(true);
+                        if (vResult.IsSuccessful)
+                        {
+                            Print(vLabel + " TRAILING STOP SUCCESSFULLY IMPLEMENTED");
+                        }
+                        else
+                        {
+                            Print(vLabel + " PROBLEM MAKING STOP A TRAILING STOP " + vResult.ToString());
+                        }
+                    }
+                    else
+                    {
+                        Print(vLabel + " PROBLEM CHANGING STOP POINT PRIOR TO INITIATING TRAILING STOP " + vResult.ToString());
+                    }
+
                 }
             }
         }
@@ -170,7 +232,7 @@ namespace cAlgo.Robots
 
         protected override void OnBar()
         {
-            Print(vLabel + " On Bar HA Result : " + i_ha.haDirection.Last(1));
+            //Print(vLabel + " On Bar HA Result : " + i_ha.haDirection.Last(1));
 
             //if (vDirection == TradeType.Buy && i_ha.haDirection.LastValue == -1 || vDirection == TradeType.Sell && i_ha.haDirection.LastValue == 1)
             if (vAlreadyScaledOut && (vDirection == TradeType.Buy && i_ha.haDirection.Last(1) == -1 || vDirection == TradeType.Sell && i_ha.haDirection.Last(1) == 1))
@@ -209,23 +271,26 @@ namespace cAlgo.Robots
 
         private void PositionsOnOpened(PositionOpenedEventArgs args)
         {
-            Print(vLabel + " Position opened {0}", args.Position.Label);
-            vPos = args.Position;
+            if (args.Position.Label == vLabel)
+            {
+                //Print(vLabel + " POSITION OPENED DELEGATE CALLED");
+                vPos = args.Position;
+            }
         }
 
         private void PositionsOnClosed(PositionClosedEventArgs args)
         {
             if (args.Position.Label == vLabel)
             {
-                Print(vLabel + " Position closed {0}", args.Position.Label);
+                //Print(vLabel + " POSITION CLOSED DELEGATE CALLED");
 
                 if (vClosedByExitIndicator)
                 {
-                    Print(vLabel + " Postion Closed From Exit Indicator");
+                    Print(vLabel + " POSITION CLOSED FROM EXIT INDICATOR");
                 }
                 else
                 {
-                    Print(vLabel + " Postion Closed From Stop Loss");
+                    Print(vLabel + " POSITION CLOSED FROM STOP LOSS");
                 }
                 Stop();
             }
