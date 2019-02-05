@@ -51,6 +51,8 @@ namespace cAlgo.Robots
         private bool vAlreadyScaledOut = false;
         private bool vClosedByExitIndicator = false;
 
+        private double vDivisor = 10000;
+
         #endregion
 
         #region indicators
@@ -76,6 +78,9 @@ namespace cAlgo.Robots
             {
                 vLabel = "BOTS_Sell_" + Symbol.Code;
             }
+
+            if (Symbol.Code.Contains("JPY"))
+                vDivisor = 100;
 
             // Instantiate Indicators
             i_atr = Indicators.AverageTrueRange(MarketSeries, 14, MovingAverageType.Exponential);
@@ -138,22 +143,24 @@ namespace cAlgo.Robots
                 }
             }
 
+
+
             if (vDirection == TradeType.Buy)
             {
-                vScaleOutTPPrice = vPos.EntryPrice + (vScaleOutTPPips / 10000);
-                vStartTrailingPrice = vPos.EntryPrice + (vStartTrailingPips / 10000);
+                vScaleOutTPPrice = vPos.EntryPrice + (vScaleOutTPPips / vDivisor);
+                vStartTrailingPrice = vPos.EntryPrice + (vStartTrailingPips / vDivisor);
             }
             else
             {
-                vScaleOutTPPrice = vPos.EntryPrice - (vScaleOutTPPips / 10000);
-                vStartTrailingPrice = vPos.EntryPrice - (vStartTrailingPips / 10000);
+                vScaleOutTPPrice = vPos.EntryPrice - (vScaleOutTPPips / vDivisor);
+                vStartTrailingPrice = vPos.EntryPrice - (vStartTrailingPips / vDivisor);
             }
 
             if (vDirection == TradeType.Buy && vStartTrailingPrice < vScaleOutTPPrice || vDirection == TradeType.Sell && vStartTrailingPrice > vScaleOutTPPrice)
 
                 vStartTrailingPrice = vScaleOutTPPrice;
 
-            //Chart.DrawStaticText("cScaleOutSLPrice", ("\n\n\n\n\n\n Scale Out TP price " + vScaleOutTPPrice), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
+            Chart.DrawStaticText("cScaleOutSLPrice", ("\n\n\n\n\n\n Scale Out TP price " + vScaleOutTPPrice), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
         }
 
         protected override void OnTick()
@@ -310,7 +317,7 @@ namespace cAlgo.Robots
 
 
             var maxRiskAmount = Account.Balance * (pPercAcctRisk / 100);
-            var atr = Math.Round((i_atr.Result.LastValue * 10000), 0);
+            var atr = Math.Round((i_atr.Result.LastValue * vDivisor), 0);
             vInitialSLPips = Convert.ToInt64(atr * pInitialSLATRMultipler);
             vScaleOutTPPips = Convert.ToUInt64(atr * pScaleOutATRMultipler);
 
