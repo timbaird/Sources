@@ -8,57 +8,45 @@ using cAlgo.Indicators;
 namespace cAlgo.Robots
 {
     [Robot(TimeZone = TimeZones.UTC, AccessRights = AccessRights.None)]
-    public class BOTS_SELL : Robot
+    public class BOTS_BUY_PIPS : Robot
     {
         #region parameters
         [Parameter("% Acct Risk per Trade", DefaultValue = 2)]
         public double pPercAcctRisk { get; set; }
 
-        [Parameter("Initial Stop Loss ATR Multipler", DefaultValue = 1)]
-        public double pInitialSLATRMultipler { get; set; }
+        [Parameter("Initial Stop Loss Pips", DefaultValue = 10)]
+        public double pInitialSLPips { get; set; }
 
-        [Parameter("Minimum Stop Loss (pips)", DefaultValue = 5)]
-        public double pMinimumSLPips { get; set; }
-
-        [Parameter("Scale Out Take Profit ATR Multiplier", DefaultValue = 1)]
-        public double pScaleOutATRMultipler { get; set; }
-
-        [Parameter("Minimum Scale Out Take Profit (pips)", DefaultValue = 5)]
-        public double pMinimumScaleOutTPPips { get; set; }
-
-        [Parameter("Start Trailing Stop ATR Multiplier", DefaultValue = 3)]
-        public double pStartTrailingATRMultipler { get; set; }
-
-        [Parameter("Distance to Trail ATR Multipler", DefaultValue = 1.5)]
-        public double pTrailingDistanceATRMultipler { get; set; }
-
+        [Parameter("Scale Out Take Profit Pips", DefaultValue = 10)]
+        public double pScaleOutPips { get; set; }
+        
+        [Parameter("Use Trailing Stops", DefaultValue = true)]
+        public bool pUseTrailingStop { get; set; }
+        
+        [Parameter("Trailing Stop Pips", DefaultValue = 20)]
+        public double pTrailingPips { get; set; }
+        
+        [Parameter("Use Exit Indicator", DefaultValue = true)]
+        public bool pUseExitIndicator { get; set; }
+        
         #endregion
 
         #region private fields
-// EDIT FOR OTHER DIRECTION    Buy or Sell
+        // EDIT FOR OTHER DIRECTION    Buy or Sell
         private TradeType vDirection = TradeType.Buy;
 
         private string vLabel;
-
-        private double vInitialSLPips;
-        private double vScaleOutTPPips;
-        private double vScaleOutTPPrice;
-        private double vStartTrailingPips;
-        private double vStartTrailingPrice;
-        private double vTrailingDistancePips;
         private long vVolume;
         private Position vPos;
         private bool vAlreadyScaledOut = false;
         private bool vClosedByExitIndicator = false;
-
         private double vDivisor = 10000;
+        private double vScaleOutTPPrice;
+        private double vStartTrailingPrice;
 
         #endregion
 
         #region indicators
-
-        // money management indictator
-        private AverageTrueRange i_atr;
 
         // exit indicator
         private HeikenAshiDirectionExitIndicator i_ha;
@@ -72,18 +60,18 @@ namespace cAlgo.Robots
 
             if (vDirection == TradeType.Buy)
             {
-                vLabel = "BOTS_Buy_" + Symbol.Code;
+                vLabel = "BOTS_BUY_PIPS_" + Symbol.Code;
             }
             else
             {
-                vLabel = "BOTS_Sell_" + Symbol.Code;
+                vLabel = "BOTS_SELL_PIPS_" + Symbol.Code;
             }
 
             if (Symbol.Code.Contains("JPY"))
                 vDivisor = 100;
 
             // Instantiate Indicators
-            i_atr = Indicators.AverageTrueRange(MarketSeries, 14, MovingAverageType.Exponential);
+            if(pUseExitIndicator)
             i_ha = Indicators.GetIndicator<HeikenAshiDirectionExitIndicator>(TimeFrame);
 
             Positions.Opened += PositionsOnOpened;
@@ -101,7 +89,7 @@ namespace cAlgo.Robots
                 if (vResult.IsSuccessful)
                 {
                     vPos = vResult.Position;
-                    vResult = vPos.ModifyStopLossPips(vInitialSLPips);
+                    vResult = vPos.ModifyStopLossPips(pInitialSLPips);
                     if (vResult.IsSuccessful)
                     {
                         Print(vLabel + " INITIAL POSITION OPENED SUCCESSFULLY");
@@ -143,24 +131,16 @@ namespace cAlgo.Robots
                 }
             }
 
-
-
             if (vDirection == TradeType.Buy)
             {
-                vScaleOutTPPrice = vPos.EntryPrice + (vScaleOutTPPips / vDivisor);
-                vStartTrailingPrice = vPos.EntryPrice + (vStartTrailingPips / vDivisor);
+                vScaleOutTPPrice = vPos.EntryPrice + (pScaleOutPips / vDivisor);
+                vStartTrailingPrice = vPos.EntryPrice + (pTrailingPips / vDivisor);
             }
             else
             {
-                vScaleOutTPPrice = vPos.EntryPrice - (vScaleOutTPPips / vDivisor);
-                vStartTrailingPrice = vPos.EntryPrice - (vStartTrailingPips / vDivisor);
+                vScaleOutTPPrice = vPos.EntryPrice - (pScaleOutPips / vDivisor);
+                vStartTrailingPrice = vPos.EntryPrice - (pTrailingPips / vDivisor);
             }
-
-            if (vDirection == TradeType.Buy && vStartTrailingPrice < vScaleOutTPPrice || vDirection == TradeType.Sell && vStartTrailingPrice > vScaleOutTPPrice)
-
-                vStartTrailingPrice = vScaleOutTPPrice;
-
-            Chart.DrawStaticText("cScaleOutSLPrice", ("\n\n\n\n\n\n Scale Out TP price " + vScaleOutTPPrice), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
         }
 
         protected override void OnTick()
@@ -179,17 +159,9 @@ namespace cAlgo.Robots
 
                         if (vResult.IsSuccessful)
                         {
+                            Print(vLabel + " SCALED OUT SUCCESSFULLY AT : " + Symbol.Bid);
+                            vAlreadyScaledOut = true;
                             vResult = vPos.ModifyStopLossPips(-1);
-
-                            if (vResult.IsSuccessful)
-                            {
-                                Print(vLabel + " SCALED OUT SUCCESSFULLY AT : " + Symbol.Bid);
-                                vAlreadyScaledOut = true;
-                            }
-                            else
-                            {
-                                Print(vLabel + " PROBLEM SETTING TRAILING STOP ON SCALE OUT - " + vResult.ToString());
-                            }
                         }
                         else
                         {
@@ -198,51 +170,44 @@ namespace cAlgo.Robots
                     }
                     else
                     {
-                        Print(vLabel + " VOLUME OF 1000 - POSITION CLOSED ON SCALE OUT");
-                        vAlreadyScaledOut = true;
-                        vPos.Close();
-                    }
-                }
-
-            }
-            //}
-            // has already, or doesn't need scaling out, but does need to start trailing
-            else if (!vPos.HasTrailingStop)
-            {
-
-                if (vDirection == TradeType.Buy && Symbol.Bid > vStartTrailingPrice || vDirection == TradeType.Sell && Symbol.Ask < vStartTrailingPrice)
-                {
-                    var vResult = vPos.ModifyStopLossPips(vTrailingDistancePips - vStartTrailingPips);
-
-                    if (vResult.IsSuccessful)
-                    {
-                        vResult = vPos.ModifyTrailingStop(true);
+                        var vResult = vPos.Close();
+                        
                         if (vResult.IsSuccessful)
                         {
-                            Print(vLabel + " TRAILING STOP SUCCESSFULLY IMPLEMENTED");
+                            Print(vLabel + " VOLUME OF 1000 - POSITION CLOSED ON SCALE OUT");
+                            vAlreadyScaledOut = true;
                         }
                         else
                         {
-                            Print(vLabel + " PROBLEM MAKING STOP A TRAILING STOP " + vResult.ToString());
+                            Print(vLabel + " VOLUME OF 1000 - PROBLEM CLOSING POSITION - " + vResult.ToString());
                         }
+                    }
+                }
+            }
+            else if (pUseTrailingStop && !vPos.HasTrailingStop)
+            {   
+                if (vDirection == TradeType.Buy && Symbol.Bid > vStartTrailingPrice ||
+                     vDirection == TradeType.Sell && Symbol.Ask < vStartTrailingPrice)
+                {
+                    var vResult = vPos.ModifyTrailingStop(true);
+                        
+                    if (vResult.IsSuccessful)
+                    {
+                        Print(vLabel + " STOP LOSS SUCCESSFULLY CHANGED TO TRAILING STOP : " + Symbol.Bid);
                     }
                     else
                     {
-                        Print(vLabel + " PROBLEM CHANGING STOP POINT PRIOR TO INITIATING TRAILING STOP " + vResult.ToString());
+                        Print(vLabel + " PROBLEM SETTING TRAILING STOP ON SCALE OUT - " + vResult.ToString());
                     }
-
-                }
-            }
+                 }
+             }   
         }
-        // otherwise is already trailing nothing more to do
 
 
         protected override void OnBar()
         {
-            //Print(vLabel + " On Bar HA Result : " + i_ha.haDirection.Last(1));
-
-            //if (vDirection == TradeType.Buy && i_ha.haDirection.LastValue == -1 || vDirection == TradeType.Sell && i_ha.haDirection.LastValue == 1)
-            if (vAlreadyScaledOut && (vDirection == TradeType.Buy && i_ha.haDirection.Last(1) == -1 || vDirection == TradeType.Sell && i_ha.haDirection.Last(1) == 1))
+            // check exit indicator
+            if (pUseExitIndicator && vAlreadyScaledOut && (vDirection == TradeType.Buy && i_ha.haDirection.Last(1) == -1 || vDirection == TradeType.Sell && i_ha.haDirection.Last(1) == 1))
             {
                 vPos.Close();
                 vClosedByExitIndicator = true;
@@ -305,49 +270,48 @@ namespace cAlgo.Robots
 
         #endregion
 
-        #region market interaction methods
-
-
-        #endregion
-
         #region utility methods
 
         private void CalculateTradeParameters()
         {
-
-
             var maxRiskAmount = Account.Balance * (pPercAcctRisk / 100);
-            var atr = Math.Round((i_atr.Result.LastValue * vDivisor), 0);
-            vInitialSLPips = Convert.ToInt64(atr * pInitialSLATRMultipler);
-            vScaleOutTPPips = Convert.ToUInt64(atr * pScaleOutATRMultipler);
-
-            if (vScaleOutTPPips < pMinimumScaleOutTPPips)
-                vScaleOutTPPips = pMinimumScaleOutTPPips;
-
-            if (vInitialSLPips < pMinimumSLPips)
-                vInitialSLPips = pMinimumSLPips;
-
-            var maxRiskPerPip = maxRiskAmount / vInitialSLPips;
+            var maxRiskPerPip = maxRiskAmount / pInitialSLPips;
             vVolume = Convert.ToInt64(maxRiskPerPip / Symbol.PipValue);
             vVolume = vVolume - (vVolume % 1000);
 
             if (vVolume < 1000)
                 vVolume = 1000;
+                
+            HorizontalAlignment vAlign = HorizontalAlignment.Left;
 
-            vStartTrailingPips = pStartTrailingATRMultipler * atr;
+            if (vDirection == TradeType.Sell)
+            {
+                vAlign = HorizontalAlignment.Right;
+                Chart.DrawStaticText("cTitle", "BOTS SELL BOT", VerticalAlignment.Top, vAlign, "Yellow");
+            }
+            else
+            {
+                Chart.DrawStaticText("cTitle", "BOTS BUY BOT", VerticalAlignment.Top, vAlign, "Yellow");
+            }
 
-            vTrailingDistancePips = pTrailingDistanceATRMultipler * atr;
-
-            if (vTrailingDistancePips < pMinimumSLPips)
-                vTrailingDistancePips = pMinimumSLPips;
-
-            Chart.DrawStaticText("cMaxRisk", (" Max Risk: $ " + Math.Round(maxRiskAmount, 2)), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
-            Chart.DrawStaticText("cATR", ("\n ATR (pips) " + atr), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
-            Chart.DrawStaticText("cInitalSL", ("\n\n Initial SL (pips) " + vInitialSLPips), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
-            Chart.DrawStaticText("cScaleOutSL", ("\n\n\n Scale Out TP (pips) " + vScaleOutTPPips), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
-            Chart.DrawStaticText("cStartTrailingAt", ("\n\n\n\n Start Trailing At (pips) " + vStartTrailingPips), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
-            Chart.DrawStaticText("cTrailDistance", ("\n\n\n\n\n Trailing Distance (pips) " + vTrailingDistancePips), VerticalAlignment.Top, HorizontalAlignment.Left, "Yellow");
-
+            Chart.DrawStaticText("cMaxRisk", ("\nMax Risk: $ " + Math.Round(maxRiskAmount, 2)), VerticalAlignment.Top, vAlign, "Yellow");
+            Chart.DrawStaticText("cInitalSL", ("\n\nInitial SL (pips) " + pInitialSLPips), VerticalAlignment.Top, vAlign, "Yellow");
+            Chart.DrawStaticText("cScaleOutTP", ("\n\n\nScale Out TP (pips) " + pScaleOutPips), VerticalAlignment.Top, vAlign, "Yellow");
+            
+            if (pUseTrailingStop)
+                Chart.DrawStaticText("cTrailingDistance", ("\n\n\n\nTrailing SL at (pips) " + pTrailingPips), VerticalAlignment.Top, vAlign, "Yellow");
+                
+            if(pUseExitIndicator)
+            {
+                if (pUseTrailingStop)
+                {
+                    Chart.DrawStaticText("cExitIndicator", "\n\n\n\n\nUsing Exit Indicator", VerticalAlignment.Top, vAlign, "Yellow");
+                }
+                else
+                {
+                    Chart.DrawStaticText("cExitIndicator", "\n\n\n\nUsing Exit Indicator", VerticalAlignment.Top, vAlign, "Yellow");
+                }
+            }     
         }
 
         #endregion

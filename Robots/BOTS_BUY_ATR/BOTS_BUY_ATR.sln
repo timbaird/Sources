@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27703.2047
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BOTS_BUY", "BOTS_BUY\BOTS_BUY.csproj", "{D2165795-29D5-446B-90DE-B571B53089DB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BOTS_BUY_ATR", "BOTS_BUY_ATR\BOTS_BUY_ATR.csproj", "{D2165795-29D5-446B-90DE-B571B53089DB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Heiken Ashi Direction Exit Indicator", "..\..\Indicators\Heiken Ashi Direction Exit Indicator\Heiken Ashi Direction Exit Indicator\Heiken Ashi Direction Exit Indicator.csproj", "{916EAE3E-6302-44E2-BBBE-A1458E5F688A}"
 EndProject

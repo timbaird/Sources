@@ -8,7 +8,7 @@ using cAlgo.Indicators;
 namespace cAlgo.Robots
 {
     [Robot(TimeZone = TimeZones.UTC, AccessRights = AccessRights.None)]
-    public class BOTS_SELL : Robot
+    public class BOTS_SELL_ATR : Robot
     {
         #region parameters
         [Parameter("% Acct Risk per Trade", DefaultValue = 2)]

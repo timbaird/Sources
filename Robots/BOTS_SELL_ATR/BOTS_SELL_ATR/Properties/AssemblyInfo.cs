@@ -2,10 +2,10 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("BOTS_SELL")]
+[assembly: AssemblyTitle("BOTS_SELL_ATR")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyProduct("BOTS_SELL")]
+[assembly: AssemblyProduct("BOTS_SELL_ATR")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
